@@ -53,8 +53,11 @@ UART_HandleTypeDef uart;
 /* USER CODE BEGIN PV */
 extern CAN_HandleTypeDef 		hcan;
 extern CAN_TxHeaderTypeDef 	TxHeader;
+CAN_RxHeaderTypeDef	RxHeader;
 extern uint8_t 				canData[4];
+uint8_t 				RxData[8];
 extern uint32_t              TxMailbox;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,6 +78,7 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	RxData[0]=0x01;
 	uint8_t buffer[2]; //tablica o dwóch elementach, która jest używana do przechowywania danych odczytanych z enkodera AS5600, pierwszy element bufora przechowuje starsze bity danych, a drugi element przechowuje młodsze bity danych (
 	float angle_degrees=0;
 	HAL_StatusTypeDef status; //zmienna do sprawdzania czy sygnał z enkodera jest odbierany
@@ -102,7 +106,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_CAN_Start(&hcan);
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -142,15 +147,15 @@ int main(void)
 
 	   // wysłanie wiadomości za pomocą CAN
 
-	   uint32_t angleEncoded = *(uint32_t*)&angle_degrees;
+	  // uint32_t angleEncoded = *(uint32_t*)&angle_degrees;
 
-	   canData[0] = (uint8_t)(angleEncoded & 0xFF);
-	   canData[1] = (uint8_t)((angleEncoded >> 8) & 0xFF);
-	   canData[2] = (uint8_t)((angleEncoded >> 16) & 0xFF);
-	   canData[3] = (uint8_t)((angleEncoded >> 24) & 0xFF);
+	  // canData[0] = (uint8_t)(angleEncoded & 0xFF);
+	  // canData[1] = (uint8_t)((angleEncoded >> 8) & 0xFF);
+	   //canData[2] = (uint8_t)((angleEncoded >> 16) & 0xFF);
+	  // canData[3] = (uint8_t)((angleEncoded >> 24) & 0xFF);
   }
 
-  HAL_CAN_AddTxMessage(&hcan, &TxHeader, canData, &TxMailbox);
+//  HAL_CAN_AddTxMessage(&hcan, &TxHeader, canData, &TxMailbox);
 
   /* USER CODE END 3 */
 }
@@ -206,6 +211,38 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) //przerwanie CAN
+{
+    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    if (RxHeader.DLC == 1 && RxData[0] == 0x01) // żądanie wysłania wartości kątowej z enkodera to 1 bajt o wartości 0x01
+    {
+        uint8_t buffer[2];
+        float angle_degrees = 0;
+        HAL_StatusTypeDef status;
+        status = HAL_I2C_Mem_Read(&hi2c1, 0x6c, 0x0C, I2C_MEMADD_SIZE_8BIT, buffer, 2, HAL_MAX_DELAY);
+
+        if (status == HAL_OK)
+        {
+            uint16_t angle = ((uint16_t)buffer[0] << 8 | buffer[1]) & 0x0FFF;
+            angle_degrees = (((float)angle - 305) * 360.0 / 4096.0) / 3.4;
+
+            uint32_t angleEncoded = *(uint32_t*)&angle_degrees;
+            canData[0] = (uint8_t)(angleEncoded & 0xFF);
+            canData[1] = (uint8_t)((angleEncoded >> 8) & 0xFF);
+            canData[2] = (uint8_t)((angleEncoded >> 16) & 0xFF);
+            canData[3] = (uint8_t)((angleEncoded >> 24) & 0xFF);
+
+            if (HAL_CAN_AddTxMessage(hcan, &TxHeader, canData, &TxMailbox) != HAL_OK)
+            {
+                Error_Handler();
+            }
+        }
+    }
+}
 
 /* USER CODE END 4 */
 

@@ -36,7 +36,9 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+extern CAN_HandleTypeDef hcan;
+extern CAN_RxHeaderTypeDef RxHeader;
+extern uint8_t RxData[8];
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

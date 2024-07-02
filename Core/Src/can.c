@@ -19,7 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "can.h"
-
+#include "main.h"
 /* USER CODE BEGIN 0 */
 
  CAN_HandleTypeDef 		hcan;
